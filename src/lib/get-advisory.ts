@@ -11,6 +11,10 @@ import { analyzeTrees, getWeather } from "./weatherai.server";
 const MAX_BYTES = 20 * 1024 * 1024; // 20 MB — matches WeatherAI's cap
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const WEATHER_TTL_MS = 30 * 60 * 1000; // 30-minute forecast bucket
+// Below this confidence (or with no trees at all) we treat the upload as "not a
+// plot photo" rather than fusing a confident-sounding advisory from nothing.
+// Tune against a real key — see the technical doc §10.
+const MIN_CONFIDENCE = 0.4;
 
 // Orchestrates the full advisory flow on the server. The browser sends one
 // multipart request (image + optional lat/lon + context); the key is applied
@@ -46,6 +50,17 @@ export const getAdvisory = createServerFn({ method: "POST" }).handler(
     // --- Tree analysis (metered; never cached — each is a real analysis). -
     const treeForm = forwardTreeFields(form, image);
     const trees = await analyzeTrees(treeForm);
+
+    // --- Reject images that aren't a tree canopy. ------------------------
+    // WeatherAI happily returns 0 trees / low confidence for an off-subject
+    // photo; without this guard we'd fuse a meaningless "canopy looks healthy"
+    // advisory. Stop here with a friendly message instead.
+    if (trees.total_tree_count === 0 || trees.confidence_score < MIN_CONFIDENCE) {
+      throw new AdvisoryError(
+        "We couldn't find a tree canopy in this image. Upload an aerial or satellite photo of your plot.",
+        422,
+      );
+    }
 
     // --- Weather (cached by coarse coords + 30-min bucket). --------------
     let weather: Advisory["weather"] = null;
