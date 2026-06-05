@@ -292,7 +292,7 @@ function Index() {
             </div>
 
             {result.note && (
-              <p className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground">
+              <p className="rounded-md border border-l-2 border-border border-l-primary bg-card px-4 py-3 text-sm text-muted-foreground">
                 {result.note}
               </p>
             )}
@@ -321,7 +321,7 @@ function Index() {
                     <li key={i} className="py-4 first:pt-0 last:pb-0">
                       <div className="flex items-baseline justify-between gap-4">
                         <div className="text-sm font-medium">{a.action}</div>
-                        <div className="shrink-0 rounded-sm bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
+                        <div className="shrink-0 rounded-md border border-border px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-primary">
                           {a.when}
                         </div>
                       </div>
@@ -368,10 +368,10 @@ function Index() {
                             {d.conditions}
                           </span>
                           <span className="w-16 text-right text-muted-foreground">
-                            {d.rain_mm} mm
+                            {Math.round(d.rain_mm)} mm
                           </span>
                           <span className="w-16 text-right font-medium">
-                            {d.high}° / {d.low}°
+                            {Math.round(d.high)}° / {Math.round(d.low)}°
                           </span>
                         </li>
                       ))}
@@ -401,15 +401,15 @@ function HealthBar({ healthy, care, replace }: { healthy: number; care: number; 
   const seg = (n: number) => `${(n / total) * 100}%`;
   return (
     <div className="mt-4">
-      <div className="flex h-2 w-full overflow-hidden rounded-full bg-secondary">
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
         <div style={{ width: seg(healthy) }} className="bg-primary" />
-        <div style={{ width: seg(care) }} className="bg-accent-foreground/60" />
-        <div style={{ width: seg(replace) }} className="bg-destructive/80" />
+        <div style={{ width: seg(care) }} className="bg-amber-500" />
+        <div style={{ width: seg(replace) }} className="bg-red-500" />
       </div>
       <ul className="mt-4 space-y-2 text-sm">
         <Row dotClass="bg-primary" label="Healthy" value={healthy} total={total} />
-        <Row dotClass="bg-accent-foreground/60" label="Needs care" value={care} total={total} />
-        <Row dotClass="bg-destructive/80" label="Needs replacement" value={replace} total={total} />
+        <Row dotClass="bg-amber-500" label="Needs care" value={care} total={total} />
+        <Row dotClass="bg-red-500" label="Needs replacement" value={replace} total={total} />
       </ul>
     </div>
   );
