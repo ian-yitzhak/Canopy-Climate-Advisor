@@ -106,28 +106,6 @@ function Index() {
 
   return (
     <div className="min-h-screen">
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div
-              aria-hidden
-              className="h-7 w-7 rounded-sm bg-primary"
-              style={{
-                maskImage:
-                  "radial-gradient(circle at 30% 30%, black 30%, transparent 31%), radial-gradient(circle at 70% 60%, black 25%, transparent 26%)",
-              }}
-            />
-            <div>
-              <div className="font-display text-lg font-semibold leading-none">Canopy</div>
-              <div className="text-xs text-muted-foreground">Climate Advisor</div>
-            </div>
-          </div>
-          <a href="#how" className="text-sm text-muted-foreground hover:text-foreground">
-            How it works
-          </a>
-        </div>
-      </header>
-
       <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
         <section className="grid gap-6 lg:grid-cols-5">
           {/* Upload card */}
