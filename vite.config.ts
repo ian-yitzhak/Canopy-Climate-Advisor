@@ -12,4 +12,9 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // Build a Vercel-deployable output. Without this the config skips the nitro
+  // deploy plugin outside a Lovable build, producing only dist/client + dist/server
+  // with no serverless function — Vercel then has nothing to run and returns 404.
+  // The "vercel" preset emits the Build Output API (.vercel/output) Vercel serves.
+  nitro: { preset: "vercel" },
 });
