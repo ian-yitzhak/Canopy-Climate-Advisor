@@ -1,6 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useRef, useCallback } from "react";
 
+import type { Advisory } from "../lib/advisory.types";
+import { getAdvisory } from "../lib/get-advisory";
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -26,83 +29,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Index,
 });
-
-type Advisory = {
-  trees: {
-    total_tree_count: number;
-    canopy_coverage_pct: number;
-    tree_health: { healthy: number; needs_care: number; needs_replacement: number };
-    confidence_score: number;
-    observations: string[];
-    recommendations: string[];
-    overlay_image_url?: string;
-  };
-  weather: {
-    location: string;
-    temp_c: number;
-    conditions: string;
-    rain_mm_next_24h: number;
-    forecast: { day: string; high: number; low: number; rain_mm: number; conditions: string }[];
-  };
-  advisory: { when: string; action: string; reason: string }[];
-};
-
-function mockAdvisory(file: File, coords: { lat: number; lon: number } | null): Advisory {
-  // Deterministic mock based on file size, only for the demo frontend.
-  const seed = Math.max(1, Math.floor(file.size / 1000) % 400 + 60);
-  const healthy = Math.floor(seed * 0.7);
-  const needs_care = Math.floor(seed * 0.22);
-  const needs_replacement = seed - healthy - needs_care;
-  return {
-    trees: {
-      total_tree_count: seed,
-      canopy_coverage_pct: 38 + (seed % 30),
-      tree_health: { healthy, needs_care, needs_replacement },
-      confidence_score: 0.86,
-      observations: [
-        "Canopy density is uneven on the eastern edge.",
-        "Soil exposure visible between rows 4 and 7.",
-        "A small cluster shows early signs of leaf stress.",
-      ],
-      recommendations: [
-        "Inspect stressed cluster within the next week.",
-        "Mulch exposed rows before the next dry spell.",
-      ],
-    },
-    weather: {
-      location: coords
-        ? `${coords.lat.toFixed(2)}°, ${coords.lon.toFixed(2)}°`
-        : "Sample location",
-      temp_c: 24,
-      conditions: "Partly cloudy",
-      rain_mm_next_24h: 6,
-      forecast: [
-        { day: "Today", high: 26, low: 17, rain_mm: 6, conditions: "Partly cloudy" },
-        { day: "Sat", high: 28, low: 18, rain_mm: 0, conditions: "Clear" },
-        { day: "Sun", high: 27, low: 18, rain_mm: 2, conditions: "Light showers" },
-        { day: "Mon", high: 25, low: 17, rain_mm: 12, conditions: "Rain" },
-        { day: "Tue", high: 24, low: 16, rain_mm: 4, conditions: "Cloudy" },
-      ],
-    },
-    advisory: [
-      {
-        when: "Today",
-        action: "Hold off on irrigation",
-        reason: "Around 6 mm of rain is expected within 24 hours.",
-      },
-      {
-        when: "This weekend",
-        action: "Inspect the stressed cluster and prune dead branches",
-        reason: "Two dry days give a clean window before Monday's rain.",
-      },
-      {
-        when: "Monday",
-        action: "Apply mulch on exposed rows before midday",
-        reason: "12 mm of rain forecast will lock moisture into the soil.",
-      },
-    ],
-  };
-}
 
 function Index() {
   const [file, setFile] = useState<File | null>(null);
@@ -154,10 +80,20 @@ function Index() {
     }
     setLoading(true);
     setError(null);
-    // Frontend-only demo: simulate the request lifecycle.
-    await new Promise((r) => setTimeout(r, 1200));
-    setResult(mockAdvisory(file, coords));
-    setLoading(false);
+    try {
+      const form = new FormData();
+      form.set("image", file);
+      if (coords) {
+        form.set("lat", String(coords.lat));
+        form.set("lon", String(coords.lon));
+      }
+      const advisory = await getAdvisory({ data: form });
+      setResult(advisory);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const reset = () => {
@@ -186,34 +122,18 @@ function Index() {
               <div className="text-xs text-muted-foreground">Climate Advisor</div>
             </div>
           </div>
-          <a
-            href="#how"
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
+          <a href="#how" className="text-sm text-muted-foreground hover:text-foreground">
             How it works
           </a>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-16">
-        <section className="max-w-2xl">
-          <h1 className="text-4xl font-semibold leading-tight sm:text-5xl">
-            One photo. A clear plan for your plot.
-          </h1>
-          <p className="mt-4 text-base text-muted-foreground sm:text-lg">
-            Upload an aerial photo of your farm. Canopy counts your trees, reads canopy
-            health, and fuses the result with the local forecast to tell you what to do —
-            and when.
-          </p>
-        </section>
-
-        <section className="mt-10 grid gap-6 lg:grid-cols-5">
+        <section className="grid gap-6 lg:grid-cols-5">
           {/* Upload card */}
           <div className="rounded-lg border border-border bg-card p-5 sm:p-6 lg:col-span-3">
             <h2 className="text-lg font-semibold">1. Upload your plot photo</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              JPEG, PNG, or WEBP. Up to 20 MB.
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">JPEG, PNG, or WEBP. Up to 20 MB.</p>
 
             <label
               onDragOver={(e) => {
@@ -228,9 +148,7 @@ function Index() {
                 onFile(f);
               }}
               className={`mt-4 flex min-h-56 cursor-pointer flex-col items-center justify-center rounded-md border border-dashed p-6 text-center transition-colors ${
-                dragOver
-                  ? "border-primary bg-accent"
-                  : "border-border bg-secondary hover:bg-accent"
+                dragOver ? "border-primary bg-accent" : "border-border bg-secondary hover:bg-accent"
               }`}
             >
               <input
@@ -321,7 +239,10 @@ function Index() {
           </div>
 
           {/* Side info card */}
-          <aside className="rounded-lg border border-border bg-card p-5 sm:p-6 lg:col-span-2" id="how">
+          <aside
+            className="rounded-lg border border-border bg-card p-5 sm:p-6 lg:col-span-2"
+            id="how"
+          >
             <h2 className="text-lg font-semibold">How it works</h2>
             <ol className="mt-4 space-y-4 text-sm">
               <li className="flex gap-3">
@@ -370,16 +291,26 @@ function Index() {
               </span>
             </div>
 
+            {result.note && (
+              <p className="rounded-md border border-border bg-secondary px-3 py-2 text-sm text-muted-foreground">
+                {result.note}
+              </p>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-3">
               <Stat label="Trees detected" value={result.trees.total_tree_count.toString()} />
-              <Stat
-                label="Canopy coverage"
-                value={`${result.trees.canopy_coverage_pct}%`}
-              />
-              <Stat
-                label="Rain next 24h"
-                value={`${result.weather.rain_mm_next_24h} mm`}
-              />
+              <Stat label="Canopy coverage" value={`${result.trees.canopy_coverage_pct}%`} />
+              {result.weather ? (
+                <Stat
+                  label="Rain next 24h"
+                  value={`${Math.round(result.weather.rain_mm_next_24h)} mm`}
+                />
+              ) : (
+                <Stat
+                  label="Confidence"
+                  value={`${Math.round(result.trees.confidence_score * 100)}%`}
+                />
+              )}
             </div>
 
             <div className="grid gap-6 lg:grid-cols-5">
@@ -422,44 +353,36 @@ function Index() {
                   />
                 </div>
 
-                <div className="rounded-lg border border-border bg-card p-5 sm:p-6">
-                  <h3 className="text-base font-semibold">Forecast</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {result.weather.location} · {result.weather.conditions} ·{" "}
-                    {result.weather.temp_c}°C
-                  </p>
-                  <ul className="mt-4 space-y-2">
-                    {result.weather.forecast.map((d) => (
-                      <li
-                        key={d.day}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span className="w-12 text-muted-foreground">{d.day}</span>
-                        <span className="flex-1 truncate px-3 text-foreground">
-                          {d.conditions}
-                        </span>
-                        <span className="w-16 text-right text-muted-foreground">
-                          {d.rain_mm} mm
-                        </span>
-                        <span className="w-16 text-right font-medium">
-                          {d.high}° / {d.low}°
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                {result.weather && (
+                  <div className="rounded-lg border border-border bg-card p-5 sm:p-6">
+                    <h3 className="text-base font-semibold">Forecast</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {result.weather.location} · {result.weather.conditions} ·{" "}
+                      {Math.round(result.weather.temp_c)}°C
+                    </p>
+                    <ul className="mt-4 space-y-2">
+                      {result.weather.forecast.map((d) => (
+                        <li key={d.day} className="flex items-center justify-between text-sm">
+                          <span className="w-12 text-muted-foreground">{d.day}</span>
+                          <span className="flex-1 truncate px-3 text-foreground">
+                            {d.conditions}
+                          </span>
+                          <span className="w-16 text-right text-muted-foreground">
+                            {d.rain_mm} mm
+                          </span>
+                          <span className="w-16 text-right font-medium">
+                            {d.high}° / {d.low}°
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           </section>
         )}
       </main>
-
-      <footer className="mt-16 border-t border-border">
-        <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:items-center sm:px-6">
-          <span>Canopy Climate Advisor — built on the WeatherAI platform.</span>
-          <span>Frontend demo. No images are uploaded or stored.</span>
-        </div>
-      </footer>
     </div>
   );
 }
@@ -473,15 +396,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function HealthBar({
-  healthy,
-  care,
-  replace,
-}: {
-  healthy: number;
-  care: number;
-  replace: number;
-}) {
+function HealthBar({ healthy, care, replace }: { healthy: number; care: number; replace: number }) {
   const total = Math.max(1, healthy + care + replace);
   const seg = (n: number) => `${(n / total) * 100}%`;
   return (
@@ -493,18 +408,8 @@ function HealthBar({
       </div>
       <ul className="mt-4 space-y-2 text-sm">
         <Row dotClass="bg-primary" label="Healthy" value={healthy} total={total} />
-        <Row
-          dotClass="bg-accent-foreground/60"
-          label="Needs care"
-          value={care}
-          total={total}
-        />
-        <Row
-          dotClass="bg-destructive/80"
-          label="Needs replacement"
-          value={replace}
-          total={total}
-        />
+        <Row dotClass="bg-accent-foreground/60" label="Needs care" value={care} total={total} />
+        <Row dotClass="bg-destructive/80" label="Needs replacement" value={replace} total={total} />
       </ul>
     </div>
   );
